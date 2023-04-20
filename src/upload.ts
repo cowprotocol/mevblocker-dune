@@ -13,7 +13,7 @@ export class S3Uploader {
   constructor(config: Config) {
     this.bucketName = config.BUCKET_NAME;
     this.externalId = config.EXTERNAL_ID;
-    this.rolesToAssume = config.ROLES_TO_ASSUME.split(',')
+    this.rolesToAssume = config.ROLES_TO_ASSUME.split(",");
   }
 
   public async createS3() {
@@ -22,17 +22,21 @@ export class S3Uploader {
     let credentials = null;
     for (const role of this.rolesToAssume) {
       log.debug(`Assuming role ${role}`);
-      const sts: STS = new STS({credentials})
-      const auth = (await sts.assumeRole({
-        RoleArn: role,
-        RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
-        ExternalId: this.externalId
-      }).promise()).Credentials;
+      const sts: STS = new STS({ credentials });
+      const auth = (
+        await sts
+          .assumeRole({
+            RoleArn: role,
+            RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
+            ExternalId: this.externalId,
+          })
+          .promise()
+      ).Credentials;
       credentials = {
-          accessKeyId: auth.AccessKeyId,
-          secretAccessKey: auth.SecretAccessKey,
-          sessionToken: auth.SessionToken
-      }
+        accessKeyId: auth.AccessKeyId,
+        secretAccessKey: auth.SecretAccessKey,
+        sessionToken: auth.SessionToken,
+      };
     }
 
     this.s3 = new S3(credentials);
@@ -45,13 +49,13 @@ export class S3Uploader {
         await this.createS3();
       } else {
         // if we are using a cached s3 instance we may want to retry in case of failure
-        retry = true
+        retry = true;
       }
       const params = {
         Bucket: this.bucketName,
         Key: `mevblocker_${Number(bundle.blockNumber)}_${bundleId}`,
         Body: JSON.stringify(duneBundle),
-        ACL: 'bucket-owner-full-control'
+        ACL: "bucket-owner-full-control",
       };
       log.debug(`Writing log: ${JSON.stringify(duneBundle)}`);
       const res = await this.s3.upload(params).promise();
@@ -61,7 +65,7 @@ export class S3Uploader {
       // Make sure we re-initialize the connection next time
       this.s3 = undefined;
       if (retry) {
-        this.upload(bundle, bundleId)
+        this.upload(bundle, bundleId);
       }
     }
   }
