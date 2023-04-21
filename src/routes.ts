@@ -5,7 +5,7 @@ import config from "./config";
 import log from "./log";
 
 const routes = Router();
-const upload = new S3Uploader(config);
+const aws = new S3Uploader(config);
 
 routes.get("/", (req, res) => {
   return res.json({ message: "Hello World" });
@@ -24,7 +24,8 @@ routes.post("/", async (req, res) => {
     const bundle: RpcBundle = request.params[0];
     log.debug(`Received Bundle: ${JSON.stringify(bundle)}`);
 
-    await upload.upload(bundle, request.id);
+    const bundleId = `${Number(bundle.blockNumber)}_${request.id}`;
+    await aws.upload(bundle, bundleId);
 
     res.json({
       jsonrpc: request.jsonrpc,
@@ -32,7 +33,8 @@ routes.post("/", async (req, res) => {
       result: null,
     });
   } catch (e) {
-    res.status(500).send(e);
+    log.error(e);
+    res.status(500).send();
   }
 });
 

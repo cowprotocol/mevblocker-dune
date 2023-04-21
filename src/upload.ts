@@ -17,28 +17,8 @@ export class S3Uploader {
   }
 
   public async createS3() {
+    const credentials = await assumeRoles(this.rolesToAssume, this.externalId);
     log.debug(`Creating S3 instance`);
-    const timestamp = new Date().getTime();
-    let credentials = null;
-    for (const role of this.rolesToAssume) {
-      log.debug(`Assuming role ${role}`);
-      const sts: STS = new STS({ credentials });
-      const auth = (
-        await sts
-          .assumeRole({
-            RoleArn: role,
-            RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
-            ExternalId: this.externalId,
-          })
-          .promise()
-      ).Credentials;
-      credentials = {
-        accessKeyId: auth.AccessKeyId,
-        secretAccessKey: auth.SecretAccessKey,
-        sessionToken: auth.SessionToken,
-      };
-    }
-
     this.s3 = new S3(credentials);
   }
   public async upload(bundle: RpcBundle, bundleId: string) {
@@ -53,7 +33,7 @@ export class S3Uploader {
       }
       const params = {
         Bucket: this.bucketName,
-        Key: `mevblocker_${Number(bundle.blockNumber)}_${bundleId}`,
+        Key: `mevblocker_${bundleId}`,
         Body: JSON.stringify(duneBundle),
         ACL: "bucket-owner-full-control",
       };
@@ -69,6 +49,30 @@ export class S3Uploader {
       }
     }
   }
+}
+
+async function assumeRoles(roles: Array<string>, ExternalId: string) {
+  const timestamp = new Date().getTime();
+  let credentials = null;
+  for (const role of roles) {
+    log.debug(`Assuming role ${role}`);
+    const sts: STS = new STS({ credentials });
+    const auth = (
+      await sts
+        .assumeRole({
+          RoleArn: role,
+          RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
+          ExternalId,
+        })
+        .promise()
+    ).Credentials;
+    credentials = {
+      accessKeyId: auth.AccessKeyId,
+      secretAccessKey: auth.SecretAccessKey,
+      sessionToken: auth.SessionToken,
+    };
+  }
+  return credentials;
 }
 
 export function convertBundle(bundle: RpcBundle, bundleId: string): DuneBundle {

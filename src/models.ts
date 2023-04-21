@@ -13,9 +13,9 @@ export interface RpcBundle {
 
 export interface DuneBundleTransaction {
   nonce: number;
-  maxFeePerGas: string | undefined;
-  maxPriorityFeePerGas: string | undefined;
-  gasPrice: string | undefined;
+  maxFeePerGas?: string;
+  maxPriorityFeePerGas?: string;
+  gasPrice?: string;
   gasLimit: string;
   to: string;
   from: string;
