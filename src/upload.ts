@@ -16,17 +16,22 @@ export class S3Uploader {
     this.rolesToAssume = config.ROLES_TO_ASSUME.split(",");
   }
 
-  public async createS3() {
-    const credentials = await assumeRoles(this.rolesToAssume, this.externalId);
+  public async createS3(timestamp: number) {
+    const credentials = await assumeRoles(
+      this.rolesToAssume,
+      this.externalId,
+      timestamp
+    );
     log.debug(`Creating S3 instance`);
     this.s3 = new S3(credentials);
   }
   public async upload(bundle: RpcBundle, bundleId: string) {
-    const duneBundle = convertBundle(bundle, bundleId);
+    const timestamp = new Date().getTime();
+    const duneBundle = convertBundle(bundle, bundleId, timestamp);
     let retry = false;
     try {
       if (!this.s3) {
-        await this.createS3();
+        await this.createS3(timestamp);
       } else {
         // if we are using a cached s3 instance we may want to retry in case of failure
         retry = true;
@@ -51,8 +56,11 @@ export class S3Uploader {
   }
 }
 
-async function assumeRoles(roles: Array<string>, ExternalId: string) {
-  const timestamp = new Date().getTime();
+async function assumeRoles(
+  roles: Array<string>,
+  ExternalId: string,
+  timestamp: number
+) {
   let credentials = null;
   for (const role of roles) {
     log.debug(`Assuming role ${role}`);
@@ -75,10 +83,15 @@ async function assumeRoles(roles: Array<string>, ExternalId: string) {
   return credentials;
 }
 
-export function convertBundle(bundle: RpcBundle, bundleId: string): DuneBundle {
+export function convertBundle(
+  bundle: RpcBundle,
+  bundleId: string,
+  timestamp: number
+): DuneBundle {
   return {
-    blockNumber: Number(bundle.blockNumber),
     bundleId,
+    timestamp,
+    blockNumber: Number(bundle.blockNumber),
     transactions: bundle.txs.map((tx) => decodeTx(tx)),
   };
 }

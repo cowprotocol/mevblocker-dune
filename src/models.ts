@@ -26,6 +26,7 @@ export interface DuneBundleTransaction {
 
 export interface DuneBundle {
   bundleId: string;
+  timestamp: number;
   blockNumber: number;
   transactions: Array<DuneBundleTransaction>;
 }

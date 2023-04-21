@@ -9,9 +9,10 @@ describe("testing bundle conversion", () => {
       ],
       blockNumber: "0x1",
     };
-    const result = convertBundle(bundle, "42");
+    const result = convertBundle(bundle, "42", 69);
     expect(result).toStrictEqual({
       bundleId: "42",
+      timestamp: 69,
       blockNumber: 1,
       transactions: [
         {
