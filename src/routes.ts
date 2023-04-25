@@ -8,7 +8,7 @@ const routes = Router();
 const aws = new S3Uploader(config);
 
 routes.get("/", (req, res) => {
-  return res.json({ message: "Hello World" });
+  return res.json({ message: "Hello MEV Blocker" });
 });
 
 routes.post("/", async (req, res) => {

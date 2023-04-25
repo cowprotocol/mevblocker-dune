@@ -2,8 +2,7 @@ export interface JsonRpcRequest {
   jsonrpc: string;
   id: string;
   method: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  params: Array<any>;
+  params: Array<unknown>;
 }
 
 export interface RpcBundle {
