@@ -2,7 +2,7 @@ export interface JsonRpcRequest {
   jsonrpc: string;
   id: string;
   method: string;
-  params: Array<unknown>;
+  params: Array<RpcBundle>;
 }
 
 export interface RpcBundle {

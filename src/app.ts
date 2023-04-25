@@ -1,16 +1,23 @@
 import express from "express";
 import routes from "./routes";
 
-function configure_middlewares(server) {
-  server.use(express.json());
+class App {
+  public server;
+
+  constructor() {
+    this.server = express();
+
+    this.middlewares();
+    this.routes();
+  }
+
+  middlewares() {
+    this.server.use(express.json());
+  }
+
+  routes() {
+    this.server.use(routes);
+  }
 }
 
-function configure_routes(server) {
-  server.use(routes);
-}
-
-const server = express();
-configure_middlewares(server);
-configure_routes(server);
-
-export default server;
+export default new App().server;
