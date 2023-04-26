@@ -38,7 +38,7 @@ export class S3Uploader {
       }
       const params = {
         Bucket: this.bucketName,
-        Key: `mevblocker_${bundleId}`,
+        Key: `mevblocker_${timestamp}`,
         Body: JSON.stringify(duneBundle),
         ACL: "bucket-owner-full-control",
       };
