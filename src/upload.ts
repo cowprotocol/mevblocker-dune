@@ -38,11 +38,13 @@ export class S3Uploader {
       }
       const params = {
         Bucket: this.bucketName,
-        Key: `mevblocker_${timestamp}`,
+        Key: `raw_bundles/mevblocker_${timestamp}`,
         Body: JSON.stringify(duneBundle),
         ACL: "bucket-owner-full-control",
       };
-      log.debug(`Writing log: ${JSON.stringify(duneBundle)}`);
+      log.debug(
+        `Writing log to ${this.bucketName}: ${JSON.stringify(duneBundle)}`
+      );
       const res = await this.s3.upload(params).promise();
       log.debug(`File Uploaded successfully ${res.Location}`);
     } catch (error) {
