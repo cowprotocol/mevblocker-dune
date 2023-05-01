@@ -16,10 +16,14 @@ routes.post("/", async (req, res) => {
     const request: JsonRpcRequest = req.body;
     log.trace(`Handling incoming request: ${JSON.stringify(request)}`);
     if (request.method != "eth_sendBundle") {
-      throw "unsupported method";
+      log.debug("unsupported method");
+      res.status(405).send();
+      return;
     }
     if (request.params.length != 1) {
-      throw "expecting a single bundle";
+      log.warn("expecting a single bundle");
+      res.status(400).send();
+      return;
     }
     const bundle: RpcBundle = request.params[0];
     log.debug(`Received Bundle: ${JSON.stringify(bundle)}`);

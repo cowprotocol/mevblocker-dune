@@ -51,6 +51,8 @@ export class S3Uploader {
       this.s3 = undefined;
       if (retry) {
         this.upload(bundle, bundleId);
+      } else {
+        throw error;
       }
     }
   }
