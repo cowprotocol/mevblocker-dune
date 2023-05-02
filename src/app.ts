@@ -1,5 +1,6 @@
 import express from "express";
 import routes from "./routes";
+import promBundle from "express-prom-bundle";
 
 class App {
   public server;
@@ -13,6 +14,13 @@ class App {
 
   middlewares() {
     this.server.use(express.json());
+    this.server.use(
+      promBundle({
+        includeMethod: true,
+        includePath: true,
+        includeStatusCode: true,
+      })
+    );
   }
 
   routes() {
