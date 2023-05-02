@@ -33,7 +33,7 @@ routes.post("/", async (req, res) => {
       result: null,
     });
   } catch (e) {
-    log.error(e);
+    log.debug(e);
     res.status(500).send();
   }
 });
