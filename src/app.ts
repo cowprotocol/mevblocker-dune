@@ -19,6 +19,7 @@ class App {
         includeMethod: true,
         includePath: true,
         includeStatusCode: true,
+        httpDurationMetricName: "mevblocker_dune_http_request",
       })
     );
   }
