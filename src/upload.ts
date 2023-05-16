@@ -25,9 +25,9 @@ export class S3Uploader {
     log.debug(`Creating S3 instance`);
     this.s3 = new S3(credentials);
   }
-  public async upload(bundle: RpcBundle, bundleId: string) {
+  public async upload(bundle: RpcBundle, bundleId: string, referrer?: string) {
     const timestamp = new Date().getTime();
-    const duneBundle = convertBundle(bundle, bundleId, timestamp);
+    const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
     let retry = false;
     try {
       if (!this.s3) {
@@ -90,13 +90,15 @@ async function assumeRoles(
 export function convertBundle(
   bundle: RpcBundle,
   bundleId: string,
-  timestamp: number
+  timestamp: number,
+  referrer?: string
 ): DuneBundle {
   return {
     bundleId,
     timestamp,
     blockNumber: Number(bundle.blockNumber),
     transactions: bundle.txs.map((tx) => decodeTx(tx)),
+    referrer,
   };
 }
 

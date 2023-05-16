@@ -29,7 +29,10 @@ routes.post("/", async (req, res) => {
     log.debug(`Received Bundle: ${JSON.stringify(bundle)}`);
 
     const bundleId = `${Number(bundle.blockNumber)}_${request.id}`;
-    await aws.upload(bundle, bundleId);
+    // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
+    const referrer: string =
+      req.headers.referer || (req.headers.referrer as string);
+    await aws.upload(bundle, bundleId, referrer);
 
     res.json({
       jsonrpc: request.jsonrpc,
