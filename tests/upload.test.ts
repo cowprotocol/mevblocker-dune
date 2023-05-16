@@ -9,7 +9,7 @@ describe("testing bundle conversion", () => {
       ],
       blockNumber: "0x1",
     };
-    const result = convertBundle(bundle, "42", 69);
+    const result = convertBundle(bundle, "42", 69, "CoW Swap");
     expect(result).toStrictEqual({
       bundleId: "42",
       timestamp: 69,
@@ -28,6 +28,7 @@ describe("testing bundle conversion", () => {
           hash: "0x07151ed9706e4dffb31eaaac2ed1be5c6f05a9eef63c8f7c6ecad9ca8731aa22",
         },
       ],
+      referrer: "CoW Swap",
     });
   });
 });

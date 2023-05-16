@@ -28,4 +28,5 @@ export interface DuneBundle {
   timestamp: number;
   blockNumber: number;
   transactions: Array<DuneBundleTransaction>;
+  referrer?: string;
 }
