@@ -31,7 +31,7 @@ routes.post("/", async (req, res) => {
     const bundleId = `${Number(bundle.blockNumber)}_${request.id}`;
     // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
     const referrer: string =
-      req.headers.referer || (req.headers.referrer as string);
+      (req.headers.referrer as string) || req.headers.referer;
     await aws.upload(bundle, bundleId, referrer);
 
     res.json({
