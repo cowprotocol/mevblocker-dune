@@ -109,7 +109,7 @@ function decodeTx(
   revertingTxHashes?: Array<string>
 ): DuneBundleTransaction {
   const parsed = ethers.utils.parseTransaction(tx);
-  const revertProtected =
+  const mayRevert =
     revertingTxHashes !== undefined
       ? revertingTxHashes
           .map((h) => h.toLocaleLowerCase())
@@ -126,6 +126,6 @@ function decodeTx(
     value: parsed.value.toString(),
     data: parsed.data,
     hash: parsed.hash,
-    revertProtected,
+    mayRevert,
   };
 }

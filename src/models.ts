@@ -22,7 +22,7 @@ export interface DuneBundleTransaction {
   value: string;
   data: string;
   hash: string;
-  revertProtected: boolean;
+  mayRevert: boolean;
 }
 
 export interface DuneBundle {
