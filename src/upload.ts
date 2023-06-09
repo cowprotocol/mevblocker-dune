@@ -112,7 +112,7 @@ function decodeTx(
   const mayRevert =
     revertingTxHashes !== undefined
       ? revertingTxHashes
-          .map((h) => h.toLocaleLowerCase())
+          .map((h) => h.toLowerCase())
           .includes(parsed.hash.toLowerCase())
       : false;
   return {
