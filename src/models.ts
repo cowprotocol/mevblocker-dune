@@ -8,6 +8,7 @@ export interface JsonRpcRequest {
 export interface RpcBundle {
   txs: Array<string>;
   blockNumber: string;
+  revertingTxHashes?: Array<string>;
 }
 
 export interface DuneBundleTransaction {
@@ -21,6 +22,7 @@ export interface DuneBundleTransaction {
   value: string;
   data: string;
   hash: string;
+  revertProtected: boolean;
 }
 
 export interface DuneBundle {
