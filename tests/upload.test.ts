@@ -26,6 +26,7 @@ describe("testing bundle conversion", () => {
           value: "0",
           data: "0xa9059cbb0000000000000000000000005408b27504dfcf7b0c3edf116e847aa19ce7f03c0000000000000000000000000000000000000000000000000000001e449a9400",
           hash: "0x07151ed9706e4dffb31eaaac2ed1be5c6f05a9eef63c8f7c6ecad9ca8731aa22",
+          mayRevert: false,
         },
       ],
       referrer: "CoW Swap",

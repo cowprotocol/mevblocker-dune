@@ -97,13 +97,24 @@ export function convertBundle(
     bundleId,
     timestamp,
     blockNumber: Number(bundle.blockNumber),
-    transactions: bundle.txs.map((tx) => decodeTx(tx)),
+    transactions: bundle.txs.map((tx) =>
+      decodeTx(tx, bundle.revertingTxHashes)
+    ),
     referrer,
   };
 }
 
-function decodeTx(tx: string): DuneBundleTransaction {
+function decodeTx(
+  tx: string,
+  revertingTxHashes?: Array<string>
+): DuneBundleTransaction {
   const parsed = ethers.utils.parseTransaction(tx);
+  const mayRevert =
+    revertingTxHashes !== undefined
+      ? revertingTxHashes
+          .map((h) => h.toLowerCase())
+          .includes(parsed.hash.toLowerCase())
+      : false;
   return {
     nonce: parsed.nonce,
     maxFeePerGas: parsed.maxFeePerGas?.toString(),
@@ -115,5 +126,6 @@ function decodeTx(tx: string): DuneBundleTransaction {
     value: parsed.value.toString(),
     data: parsed.data,
     hash: parsed.hash,
+    mayRevert,
   };
 }
