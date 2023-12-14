@@ -6,10 +6,17 @@ const config = t.type({
   BUCKET_NAME: t.string,
   EXTERNAL_ID: t.string,
   ROLES_TO_ASSUME: t.string,
+  UPLOAD_DELAY: t.number,
 });
+
+const parsedEnv = {
+  ...process.env,
+  UPLOAD_DELAY: parseInt(process.env.UPLOAD_DELAY, 10),
+};
+
 export type Config = t.TypeOf<typeof config>;
 export default pipe(
-  config.decode(process.env),
+  config.decode(parsedEnv),
   getOrElse(() => {
     throw "Configuration error";
   })

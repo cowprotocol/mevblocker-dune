@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { RpcBundle, JsonRpcRequest } from "./models";
 import { S3Uploader } from "./upload";
-import config from "./config";
+import config, { Config } from "./config";
 import log from "./log";
 
 const routes = Router();
@@ -26,19 +26,27 @@ routes.post("/", async (req, res) => {
       return;
     }
     const bundle: RpcBundle = request.params[0];
-    log.debug(`Received Bundle: ${JSON.stringify(bundle)}`);
-
     const bundleId = `${Number(bundle.blockNumber)}_${request.id}`;
+    log.debug(`Received Bundle ${bundleId}: ${JSON.stringify(bundle)}`);
+
     // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
     const referrer: string =
       (req.headers.referrer as string) || req.headers.referer;
-    await aws.upload(bundle, bundleId, referrer);
-
     res.json({
       jsonrpc: request.jsonrpc,
       id: request.id,
       result: null,
     });
+
+    // Only upload after some delay
+    setTimeout(async () => {
+      try {
+        log.debug(`Uploading bundle ${bundleId}`);
+        await aws.upload(bundle, bundleId, referrer);
+      } catch (e) {
+        log.debug(e);
+      }
+    }, (config as Config).UPLOAD_DELAY);
   } catch (e) {
     log.debug(e);
     res.status(500).send();
