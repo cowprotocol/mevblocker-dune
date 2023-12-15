@@ -46,7 +46,7 @@ routes.post("/", async (req, res) => {
       } catch (e) {
         log.debug(e);
       }
-    }, (config as Config).UPLOAD_DELAY);
+    }, (config as Config).UPLOAD_DELAY_MS);
   } catch (e) {
     log.debug(e);
     res.status(500).send();
