@@ -43,7 +43,7 @@ routes.post("/", async (req, res) => {
     setTimeout(async () => {
       try {
         log.debug(`Uploading bundle ${bundleId}`);
-        await aws.upload(bundle, bundleId, timestamp, referrer);
+        await aws.upload({ bundle, bundleId, timestamp, referrer });
       } catch (e) {
         log.debug(e);
       }

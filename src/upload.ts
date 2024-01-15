@@ -3,7 +3,13 @@ import { S3, STS } from "aws-sdk";
 import log from "./log";
 import { Config } from "./config";
 import { ethers } from "ethers";
-import { time } from "console";
+
+interface UploadParams {
+  bundle: RpcBundle;
+  bundleId: string;
+  timestamp: number;
+  referrer?: string;
+}
 
 export class S3Uploader {
   private bucketName: string;
@@ -26,12 +32,7 @@ export class S3Uploader {
     log.debug(`Creating S3 instance`);
     this.s3 = new S3(credentials);
   }
-  public async upload(
-    bundle: RpcBundle,
-    bundleId: string,
-    timestamp: number,
-    referrer?: string
-  ) {
+  public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams) {
     const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
     let retry = false;
     try {
@@ -57,7 +58,7 @@ export class S3Uploader {
       // Make sure we re-initialize the connection next time
       this.s3 = undefined;
       if (retry) {
-        this.upload(bundle, bundleId, timestamp, referrer);
+        this.upload({ bundle, bundleId, timestamp, referrer });
       } else {
         throw error;
       }
