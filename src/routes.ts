@@ -37,12 +37,13 @@ routes.post("/", async (req, res) => {
       id: request.id,
       result: null,
     });
+    const timestamp = new Date().getTime();
 
     // Only upload after some delay
     setTimeout(async () => {
       try {
         log.debug(`Uploading bundle ${bundleId}`);
-        await aws.upload(bundle, bundleId, referrer);
+        await aws.upload({ bundle, bundleId, timestamp, referrer });
       } catch (e) {
         log.debug(e);
       }
