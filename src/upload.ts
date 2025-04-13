@@ -114,7 +114,7 @@ function decodeTx(
   tx: string,
   revertingTxHashes?: Array<string>
 ): DuneBundleTransaction {
-  const parsed = ethers.utils.parseTransaction(tx);
+  const parsed = ethers.Transaction.from(tx);
   const mayRevert =
     revertingTxHashes !== undefined
       ? revertingTxHashes
