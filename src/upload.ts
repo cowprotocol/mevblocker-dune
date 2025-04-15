@@ -78,12 +78,11 @@ async function assumeRoles(
     log.debug(`Assuming role ${role}`);
     const sts: STS = new STS({ credentials });
     const auth = (
-      await sts
-        .assumeRole({
-          RoleArn: role,
-          RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
-          ExternalId,
-        })
+      await sts.assumeRole({
+        RoleArn: role,
+        RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
+        ExternalId,
+      })
     ).Credentials;
     credentials = {
       accessKeyId: auth.AccessKeyId,
