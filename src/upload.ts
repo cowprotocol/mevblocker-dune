@@ -17,12 +17,14 @@ export class S3Uploader {
   private bucketName: string;
   private externalId: string;
   private rolesToAssume: Array<string>;
+  private region: string;
   private s3: S3;
 
   constructor(config: Config) {
     this.bucketName = config.BUCKET_NAME;
     this.externalId = config.EXTERNAL_ID;
     this.rolesToAssume = config.ROLES_TO_ASSUME.split(",");
+    this.region = config.REGION;
   }
 
   public async createS3(timestamp: number) {
@@ -32,7 +34,7 @@ export class S3Uploader {
       timestamp
     );
     log.debug(`Creating S3 instance`);
-    this.s3 = new S3(credentials);
+    this.s3 = new S3({ ...credentials, region: this.region });
   }
   public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams) {
     const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
