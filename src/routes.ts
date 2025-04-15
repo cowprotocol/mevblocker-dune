@@ -45,11 +45,11 @@ routes.post("/", async (req, res) => {
         log.debug(`Uploading bundle ${bundleId}`);
         await aws.upload({ bundle, bundleId, timestamp, referrer });
       } catch (e) {
-        log.debug(e);
+        log.debug("Error", e instanceof Error ? e.stack : e);
       }
     }, (config as Config).UPLOAD_DELAY_MS);
   } catch (e) {
-    log.debug(e);
+    log.debug("Error", e instanceof Error ? e.stack : e);
     res.status(500).send();
   }
 });
