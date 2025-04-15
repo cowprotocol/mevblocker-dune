@@ -34,7 +34,7 @@ export class S3Uploader {
       timestamp
     );
     log.debug(`Creating S3 instance`);
-    this.s3 = new S3({ ...credentials, region: this.region });
+    this.s3 = new S3({ credentials, region: this.region });
   }
   public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams) {
     const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
