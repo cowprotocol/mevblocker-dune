@@ -1,5 +1,7 @@
 import { DuneBundle, DuneBundleTransaction, RpcBundle } from "./models";
-import { S3, STS } from "aws-sdk";
+import { Upload } from "@aws-sdk/lib-storage";
+import { S3, ObjectCannedACL } from "@aws-sdk/client-s3";
+import { STS } from "@aws-sdk/client-sts";
 import log from "./log";
 import { Config } from "./config";
 import { ethers } from "ethers";
@@ -46,12 +48,12 @@ export class S3Uploader {
         Bucket: this.bucketName,
         Key: `raw_bundles/mevblocker_${timestamp}`,
         Body: JSON.stringify(duneBundle),
-        ACL: "bucket-owner-full-control",
+        ACL: ObjectCannedACL.bucket_owner_full_control,
       };
       log.debug(
         `Writing log to ${this.bucketName}: ${JSON.stringify(duneBundle)}`
       );
-      const res = await this.s3.upload(params).promise();
+      const res = await new Upload({ client: this.s3, params }).done();
       log.debug(`File Uploaded successfully ${res.Location}`);
     } catch (error) {
       log.error(`Unable to Upload the file: ${error}, retrying: ${retry}`);
@@ -76,13 +78,11 @@ async function assumeRoles(
     log.debug(`Assuming role ${role}`);
     const sts: STS = new STS({ credentials });
     const auth = (
-      await sts
-        .assumeRole({
-          RoleArn: role,
-          RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
-          ExternalId,
-        })
-        .promise()
+      await sts.assumeRole({
+        RoleArn: role,
+        RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
+        ExternalId,
+      })
     ).Credentials;
     credentials = {
       accessKeyId: auth.AccessKeyId,
