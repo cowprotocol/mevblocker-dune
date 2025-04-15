@@ -1,8 +1,10 @@
 import { DuneBundle, DuneBundleTransaction, RpcBundle } from "./models";
 import { Upload } from "@aws-sdk/lib-storage";
 import { S3, ObjectCannedACL } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@aws-sdk/node-http-handler";
 import { STS } from "@aws-sdk/client-sts";
 import log from "./log";
+import * as https from "https";
 import { Config } from "./config";
 import { ethers } from "ethers";
 
@@ -34,7 +36,13 @@ export class S3Uploader {
       timestamp
     );
     log.debug(`Creating S3 instance`);
-    this.s3 = new S3({ credentials, region: this.region });
+    this.s3 = new S3({
+      credentials,
+      region: this.region,
+      requestHandler: new NodeHttpHandler({
+        httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 200 }),
+      }),
+    });
   }
   public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams) {
     const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
