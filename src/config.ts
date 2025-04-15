@@ -7,6 +7,7 @@ const config = t.type({
   EXTERNAL_ID: t.string,
   ROLES_TO_ASSUME: t.string,
   UPLOAD_DELAY_MS: t.number,
+  REGION: t.string,
 });
 
 const parsedEnv = {
