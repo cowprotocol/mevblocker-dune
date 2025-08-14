@@ -33,7 +33,7 @@ export class S3Uploader {
     const credentials = await assumeRoles(
       this.rolesToAssume,
       this.externalId,
-      timestamp
+      timestamp,
     );
     log.debug(`Creating S3 instance`);
     this.s3 = new S3({
@@ -61,7 +61,7 @@ export class S3Uploader {
         ACL: ObjectCannedACL.bucket_owner_full_control,
       };
       log.debug(
-        `Writing log to ${this.bucketName}: ${JSON.stringify(duneBundle)}`
+        `Writing log to ${this.bucketName}: ${JSON.stringify(duneBundle)}`,
       );
       const res = await new Upload({ client: this.s3, params }).done();
       log.debug(`File Uploaded successfully ${res.Location}`);
@@ -81,7 +81,7 @@ export class S3Uploader {
 async function assumeRoles(
   roles: Array<string>,
   ExternalId: string,
-  timestamp: number
+  timestamp: number,
 ) {
   let credentials = null;
   for (const role of roles) {
@@ -107,14 +107,14 @@ export function convertBundle(
   bundle: RpcBundle,
   bundleId: string,
   timestamp: number,
-  referrer?: string
+  referrer?: string,
 ): DuneBundle {
   return {
     bundleId,
     timestamp,
     blockNumber: Number(bundle.blockNumber),
     transactions: bundle.txs.map((tx) =>
-      decodeTx(tx, bundle.revertingTxHashes)
+      decodeTx(tx, bundle.revertingTxHashes),
     ),
     referrer,
   };
@@ -122,7 +122,7 @@ export function convertBundle(
 
 function decodeTx(
   tx: string,
-  revertingTxHashes?: Array<string>
+  revertingTxHashes?: Array<string>,
 ): DuneBundleTransaction {
   const parsed = ethers.Transaction.from(tx);
   const mayRevert =

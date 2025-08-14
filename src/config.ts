@@ -20,5 +20,5 @@ export default pipe(
   config.decode(parsedEnv),
   getOrElse(() => {
     throw "Configuration error";
-  })
+  }),
 );

@@ -1,3 +1,6 @@
+import { describe, test } from "node:test";
+import assert from "node:assert";
+
 import { RpcBundle } from "../src/models";
 import { convertBundle } from "../src/upload";
 
@@ -10,7 +13,7 @@ describe("testing bundle conversion", () => {
       blockNumber: "0x1",
     };
     const result = convertBundle(bundle, "42", 69, "CoW Swap");
-    expect(result).toStrictEqual({
+    assert.deepStrictEqual(result, {
       bundleId: "42",
       timestamp: 69,
       blockNumber: 1,
