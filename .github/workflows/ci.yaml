@@ -7,7 +7,7 @@ jobs:
   lint:
     strategy:
       matrix:
-        node-version: [16.x]
+        node-version: [22.x]
         os: [ubuntu-latest]
     name: Code linting
     runs-on: ${{ matrix.os }}
