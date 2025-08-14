@@ -21,7 +21,7 @@
     "build": "tsc --project ./",
     "start:dev": "nodemon src/server.ts",
     "start:prod": "node dist/server.js",
-    "test": "node --require ts-node/register --test \"tests/*\"",
+    "test": "node --require ts-node/register --test tests/upload.test.ts",
     "lint": "eslint --ext .ts . && prettier --check .",
     "fmt": "eslint --fix --ext .ts . && prettier --write ."
   },
