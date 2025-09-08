@@ -50,7 +50,7 @@ export class S3Uploader {
       }),
     });
   }
-  public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams) {
+  public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams): Promise<void> {
     const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
     let retry = false;
     try {
