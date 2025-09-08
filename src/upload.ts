@@ -40,7 +40,13 @@ export class S3Uploader {
       credentials,
       region: this.region,
       requestHandler: new NodeHttpHandler({
-        httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 200 }),
+        connectionTimeout: 5000,
+        socketTimeout: 60000,
+        httpsAgent: new https.Agent({
+          keepAlive: true,
+          keepAliveMsecs: 5000,
+          maxSockets: 200,
+        }),
       }),
     });
   }
@@ -70,10 +76,9 @@ export class S3Uploader {
       // Make sure we re-initialize the connection next time
       this.s3 = undefined;
       if (retry) {
-        this.upload({ bundle, bundleId, timestamp, referrer });
-      } else {
-        throw error;
+        return this.upload({ bundle, bundleId, timestamp, referrer });
       }
+      throw error;
     }
   }
 }
@@ -92,6 +97,7 @@ async function assumeRoles(
         RoleArn: role,
         RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
         ExternalId,
+        DurationSeconds: 3600,
       })
     ).Credentials;
     credentials = {

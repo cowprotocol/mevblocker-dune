@@ -11,6 +11,10 @@ routes.get("/", (req, res) => {
   return res.json({ message: "Hello MEV Blocker" });
 });
 
+routes.get("/healthz", (_req, res) => {
+  res.status(200).send("ok");
+});
+
 routes.post("/", async (req, res) => {
   try {
     const request: JsonRpcRequest = req.body;
