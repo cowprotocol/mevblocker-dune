@@ -1,7 +1,7 @@
 import app from "./app";
 import log from "./log";
 
-process.on("unhandledRejection", (e: any) => {
+process.on("unhandledRejection", (e: unknown) => {
   try {
     log.error("unhandledRejection", e instanceof Error ? e.stack ?? e.message : e);
   } finally {
@@ -9,7 +9,7 @@ process.on("unhandledRejection", (e: any) => {
   }
 });
 
-process.on("uncaughtException", (e: any) => {
+process.on("uncaughtException", (e: unknown) => {
   try {
     log.error("uncaughtException", e instanceof Error ? e.stack ?? e.message : e);
   } finally {

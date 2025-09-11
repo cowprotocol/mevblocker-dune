@@ -28,7 +28,8 @@ routes.post("/", async (req, res) => {
     }
     const bundle: RpcBundle = request.params[0];
     const bundleId = `${Number(bundle.blockNumber)}_${request.id}`;
-    log.debug(`Received Bundle ${bundleId}: ${JSON.stringify(bundle)}`);
+    const txCount = Array.isArray(bundle.txs) ? bundle.txs.length : 0;
+    log.debug(`Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${txCount})`);
 
     // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
     const referrer: string =
