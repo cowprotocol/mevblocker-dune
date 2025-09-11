@@ -25,8 +25,7 @@ export class S3Uploader {
   constructor(config: Config) {
     this.bucketName = config.BUCKET_NAME;
     this.externalId = config.EXTERNAL_ID;
-    this.rolesToAssume = config.ROLES_TO_ASSUME
-      .split(",")
+    this.rolesToAssume = config.ROLES_TO_ASSUME.split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     this.region = config.REGION;
@@ -55,7 +54,12 @@ export class S3Uploader {
       }),
     });
   }
-  public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams): Promise<void> {
+  public async upload({
+    bundle,
+    bundleId,
+    timestamp,
+    referrer,
+  }: UploadParams): Promise<void> {
     const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
     const key = `raw_bundles/mevblocker_${timestamp}`;
     const body = JSON.stringify(duneBundle);
@@ -71,12 +75,16 @@ export class S3Uploader {
           Body: body,
           ACL: ObjectCannedACL.bucket_owner_full_control,
         };
-        log.debug(`Uploading to s3://${this.bucketName}/${key} (attempt ${attempt})`);
+        log.debug(
+          `Uploading to s3://${this.bucketName}/${key} (attempt ${attempt})`
+        );
         const res = await new Upload({ client: this.s3, params }).done();
         log.debug(`Uploaded ${key} -> ${res.Location}`);
         return;
       } catch (error) {
-        log.error(`Upload failed for ${key} (attempt ${attempt}/${maxAttempts}): ${error}`);
+        log.error(
+          `Upload failed for ${key} (attempt ${attempt}/${maxAttempts}): ${error}`
+        );
         // Force re-init of the client on next attempt
         this.s3 = undefined as any;
         if (attempt < maxAttempts) {

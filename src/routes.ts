@@ -11,7 +11,6 @@ routes.get("/", (req, res) => {
   return res.json({ message: "Hello MEV Blocker" });
 });
 
-
 routes.post("/", async (req, res) => {
   try {
     const request: JsonRpcRequest = req.body;
@@ -29,7 +28,9 @@ routes.post("/", async (req, res) => {
     const bundle: RpcBundle = request.params[0];
     const bundleId = `${Number(bundle.blockNumber)}_${request.id}`;
     const txCount = Array.isArray(bundle.txs) ? bundle.txs.length : 0;
-    log.debug(`Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${txCount})`);
+    log.debug(
+      `Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${txCount})`
+    );
 
     // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
     const referrer: string =

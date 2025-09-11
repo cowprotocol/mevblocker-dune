@@ -3,7 +3,10 @@ import log from "./log";
 
 process.on("unhandledRejection", (e: unknown) => {
   try {
-    log.error("unhandledRejection", e instanceof Error ? e.stack ?? e.message : e);
+    log.error(
+      "unhandledRejection",
+      e instanceof Error ? e.stack ?? e.message : e
+    );
   } finally {
     process.exit(1);
   }
@@ -11,7 +14,10 @@ process.on("unhandledRejection", (e: unknown) => {
 
 process.on("uncaughtException", (e: unknown) => {
   try {
-    log.error("uncaughtException", e instanceof Error ? e.stack ?? e.message : e);
+    log.error(
+      "uncaughtException",
+      e instanceof Error ? e.stack ?? e.message : e
+    );
   } finally {
     process.exit(1);
   }
