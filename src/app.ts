@@ -13,7 +13,6 @@ class App {
   }
 
   middlewares() {
-    this.server.use(express.json({ limit: "10mb" }));
     this.server.use(
       promBundle({
         includeMethod: true,
@@ -22,6 +21,7 @@ class App {
         httpDurationMetricName: "mevblocker_dune_http_request",
       })
     );
+    this.server.use(express.json({ limit: "10mb" }));
   }
 
   routes() {
