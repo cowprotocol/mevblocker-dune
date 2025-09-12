@@ -20,7 +20,7 @@ export class S3Uploader {
   private externalId: string;
   private rolesToAssume: Array<string>;
   private region: string;
-  private s3: S3;
+  private s3: S3 | undefined;
 
   constructor(config: Config) {
     this.bucketName = config.BUCKET_NAME;
@@ -69,6 +69,11 @@ export class S3Uploader {
         if (!this.s3) {
           await this.createS3(timestamp);
         }
+        const client = this.s3;
+        if (!client) {
+          // Defensive: createS3 should set this.s3; if not, we cannot proceed.
+          throw new Error("S3 client not initialized");
+        }
         const params = {
           Bucket: this.bucketName,
           Key: key,
@@ -78,7 +83,7 @@ export class S3Uploader {
         log.debug(
           `Uploading to s3://${this.bucketName}/${key} (attempt ${attempt})`
         );
-        const res = await new Upload({ client: this.s3, params }).done();
+        const res = await new Upload({ client, params }).done();
         log.debug(`Uploaded ${key} -> ${res.Location}`);
         return;
       } catch (error) {
@@ -86,7 +91,7 @@ export class S3Uploader {
           `Upload failed for ${key} (attempt ${attempt}/${maxAttempts}): ${error}`
         );
         // Force re-init of the client on next attempt
-        this.s3 = undefined as any;
+        this.s3 = undefined;
         if (attempt < maxAttempts) {
           const backoffMs = 1000 * Math.pow(2, attempt - 1);
           await new Promise((r) => setTimeout(r, backoffMs));
