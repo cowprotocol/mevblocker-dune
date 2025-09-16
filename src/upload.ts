@@ -54,6 +54,7 @@ export class S3Uploader {
       }),
     });
   }
+  
   public async upload({
     bundle,
     bundleId,
@@ -117,6 +118,7 @@ async function assumeRoles(
         RoleArn: role,
         RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
         ExternalId,
+        DurationSeconds: 3600,
       })
     ).Credentials;
     credentials = {
@@ -138,11 +140,24 @@ export function convertBundle(
     bundleId,
     timestamp,
     blockNumber: Number(bundle.blockNumber),
-    transactions: bundle.txs.map((tx) =>
-      decodeTx(tx, bundle.revertingTxHashes)
-    ),
+    transactions: bundle.txs
+      .map((tx) => tryDecodeTx(tx, bundle.revertingTxHashes))
+      .filter((t): t is DuneBundleTransaction => t !== null),
     referrer,
   };
+}
+
+function tryDecodeTx(
+  tx: string,
+  revertingTxHashes?: Array<string>
+): DuneBundleTransaction | null {
+  try {
+    return decodeTx(tx, revertingTxHashes);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.warn(`Failed to decode transaction, skipping. Reason: ${message}`);
+    return null;
+  }
 }
 
 function decodeTx(
