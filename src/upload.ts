@@ -71,10 +71,18 @@ export class S3Uploader {
     return this.s3CreationPromise;
   }
 
-  public async upload({ bundle, bundleId, timestamp, referrer }: UploadParams, retryCount = 0): Promise<void> {
+  public async upload(
+    { bundle, bundleId, timestamp, referrer }: UploadParams,
+    retryCount = 0
+  ): Promise<void> {
     const maxRetries = 3;
     try {
-      const duneBundle = await convertBundleStreaming(bundle, bundleId, timestamp, referrer);
+      const duneBundle = await convertBundleStreaming(
+        bundle,
+        bundleId,
+        timestamp,
+        referrer
+      );
 
       if (!this.s3) {
         await this.createS3(timestamp);
@@ -94,7 +102,9 @@ export class S3Uploader {
         ACL: ObjectCannedACL.bucket_owner_full_control,
       };
 
-      log.debug(`Writing bundle ${bundleId} to ${this.bucketName} (size: ${bundleJson.length} bytes)`);
+      log.debug(
+        `Writing bundle ${bundleId} to ${this.bucketName} (size: ${bundleJson.length} bytes)`
+      );
       const res = await new Upload({
         client,
         params,
@@ -106,7 +116,11 @@ export class S3Uploader {
       // Clear reference to help with GC
       duneBundle.transactions = [];
     } catch (error) {
-      log.error(`Unable to Upload bundle ${bundleId} (attempt ${retryCount + 1}/${maxRetries + 1}): ${error}`);
+      log.error(
+        `Unable to Upload bundle ${bundleId} (attempt ${retryCount + 1}/${
+          maxRetries + 1
+        }): ${error}`
+      );
 
       // Reset S3 connection on certain errors
       if (this.shouldResetConnection(error)) {
@@ -118,21 +132,26 @@ export class S3Uploader {
         // Exponential backoff: 1s, 2s, 4s
         const delay = Math.pow(2, retryCount) * 1000;
         log.debug(`Retrying upload in ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return this.upload({ bundle, bundleId, timestamp, referrer }, retryCount + 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.upload(
+          { bundle, bundleId, timestamp, referrer },
+          retryCount + 1
+        );
       } else {
         throw error;
       }
     }
   }
 
-  private shouldResetConnection(error: any): boolean {
+  private shouldResetConnection(error: unknown): boolean {
     const errorString = String(error).toLowerCase();
-    return errorString.includes('credentials') ||
-      errorString.includes('token') ||
-      errorString.includes('expired') ||
-      errorString.includes('network') ||
-      errorString.includes('timeout');
+    return (
+      errorString.includes("credentials") ||
+      errorString.includes("token") ||
+      errorString.includes("expired") ||
+      errorString.includes("network") ||
+      errorString.includes("timeout")
+    );
   }
 }
 
@@ -200,7 +219,7 @@ export async function convertBundleStreaming(
 
     // Allow event loop to process other requests
     if (i % (batchSize * 10) === 0) {
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
     }
   }
 
@@ -234,8 +253,8 @@ function decodeTx(
   const mayRevert =
     revertingTxHashes !== undefined
       ? revertingTxHashes
-        .map((h) => h.toLowerCase())
-        .includes(parsed.hash.toLowerCase())
+          .map((h) => h.toLowerCase())
+          .includes(parsed.hash.toLowerCase())
       : false;
   return {
     nonce: parsed.nonce,

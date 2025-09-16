@@ -5,7 +5,9 @@ export class MemoryMonitor {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private memoryThresholdMB = 512; // Alert if memory usage exceeds 512MB
 
-  private constructor() { }
+  private constructor() {
+    // Private constructor for singleton pattern
+  }
 
   public static getInstance(): MemoryMonitor {
     if (!MemoryMonitor.instance) {
@@ -46,7 +48,9 @@ export class MemoryMonitor {
 
   public logMemoryStats(): void {
     const stats = this.getMemoryStats();
-    log.debug(`Memory usage: RSS=${stats.rss}MB, Heap=${stats.heapUsed}/${stats.heapTotal}MB, External=${stats.external}MB`);
+    log.debug(
+      `Memory usage: RSS=${stats.rss}MB, Heap=${stats.heapUsed}/${stats.heapTotal}MB, External=${stats.external}MB`
+    );
   }
 
   public forceGarbageCollection(): void {
@@ -54,9 +58,15 @@ export class MemoryMonitor {
       const beforeStats = this.getMemoryStats();
       global.gc();
       const afterStats = this.getMemoryStats();
-      log.debug(`Forced GC: heap ${beforeStats.heapUsed}MB -> ${afterStats.heapUsed}MB (freed ${beforeStats.heapUsed - afterStats.heapUsed}MB)`);
+      log.debug(
+        `Forced GC: heap ${beforeStats.heapUsed}MB -> ${
+          afterStats.heapUsed
+        }MB (freed ${beforeStats.heapUsed - afterStats.heapUsed}MB)`
+      );
     } else {
-      log.warn("Garbage collection not exposed. Start Node.js with --expose-gc flag");
+      log.warn(
+        "Garbage collection not exposed. Start Node.js with --expose-gc flag"
+      );
     }
   }
 
@@ -64,7 +74,9 @@ export class MemoryMonitor {
     const stats = this.getMemoryStats();
 
     if (stats.heapUsed > this.memoryThresholdMB) {
-      log.warn(`High memory usage detected: ${stats.heapUsed}MB heap used (threshold: ${this.memoryThresholdMB}MB)`);
+      log.warn(
+        `High memory usage detected: ${stats.heapUsed}MB heap used (threshold: ${this.memoryThresholdMB}MB)`
+      );
 
       // Auto-trigger GC if available and memory is very high
       if (stats.heapUsed > this.memoryThresholdMB * 1.5 && global.gc) {

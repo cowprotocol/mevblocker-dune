@@ -34,7 +34,7 @@ routes.post("/", async (req, res) => {
       return;
     }
     const bundle: RpcBundle = request.params[0];
-    
+
     // Validate bundle structure and content
     if (!Array.isArray(bundle.txs) || bundle.txs.length === 0) {
       log.warn("bundle.txs must be a non-empty array");
@@ -43,7 +43,6 @@ routes.post("/", async (req, res) => {
     }
     // Enhanced validation for bundle size
     const txCount = bundle.txs.length;
-    const contentLength = Number(req.headers["content-length"]) || 0;
 
     if (txCount > 10000) {
       // Increased limit but still reasonable to prevent abuse
@@ -55,8 +54,13 @@ routes.post("/", async (req, res) => {
     // Estimate memory usage: ~2KB per transaction on average
     const estimatedMemoryMB = (txCount * 2048) / (1024 * 1024);
     if (estimatedMemoryMB > 100) {
-      log.warn(`Bundle too large: ${txCount} txs, estimated ${estimatedMemoryMB}MB`);
-      res.status(413).json({ error: "Bundle too large", estimatedSizeMB: estimatedMemoryMB });
+      log.warn(
+        `Bundle too large: ${txCount} txs, estimated ${estimatedMemoryMB}MB`
+      );
+      res.status(413).json({
+        error: "Bundle too large",
+        estimatedSizeMB: estimatedMemoryMB,
+      });
       return;
     }
     const blockNumberNum = Number(bundle.blockNumber);
@@ -65,9 +69,11 @@ routes.post("/", async (req, res) => {
       res.status(400).send();
       return;
     }
-    
+
     const bundleId = `${blockNumberNum}_${request.id}`;
-    log.debug(`Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${bundle.txs.length})`);
+    log.debug(
+      `Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${bundle.txs.length})`
+    );
 
     // Log memory stats for large bundles
     if (bundle.txs.length > 1000) {
@@ -95,11 +101,14 @@ routes.post("/", async (req, res) => {
           log.debug(`Uploading bundle ${bundleId}`);
           await aws.upload(uploadParams);
           // Clear reference to help GC
-          uploadParams.bundle = null as any;
+          uploadParams.bundle = null as unknown as RpcBundle;
         } catch (e) {
-          log.error(`Upload failed for bundle ${bundleId}:`, e instanceof Error ? e.stack : e);
+          log.error(
+            `Upload failed for bundle ${bundleId}:`,
+            e instanceof Error ? e.stack : e
+          );
           // Clear reference even on error
-          uploadParams.bundle = null as any;
+          uploadParams.bundle = null as unknown as RpcBundle;
         }
       });
     }, (config as Config).UPLOAD_DELAY_MS);
