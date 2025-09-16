@@ -9,7 +9,7 @@ import { Config } from "./config";
 import { ethers } from "ethers";
 
 interface UploadParams {
-  bundle: RpcBundle;
+  bundle?: RpcBundle;
   bundleId: string;
   timestamp: number;
   referrer?: string;
@@ -77,6 +77,9 @@ export class S3Uploader {
   ): Promise<void> {
     const maxRetries = 3;
     try {
+      if (!bundle) {
+        throw new Error("Bundle is required for upload");
+      }
       const duneBundle = await convertBundleStreaming(
         bundle,
         bundleId,
@@ -134,7 +137,7 @@ export class S3Uploader {
         log.debug(`Retrying upload in ${delay}ms`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         return this.upload(
-          { bundle, bundleId, timestamp, referrer },
+          { bundle: bundle!, bundleId, timestamp, referrer },
           retryCount + 1
         );
       } else {
@@ -217,8 +220,8 @@ export async function convertBundleStreaming(
 
     transactions.push(...processedBatch);
 
-    // Allow event loop to process other requests
-    if (i % (batchSize * 10) === 0) {
+    // Allow event loop to process other requests (skip first iteration)
+    if (i > 0 && i % (batchSize * 10) === 0) {
       await new Promise((resolve) => setImmediate(resolve));
     }
   }

@@ -50,7 +50,8 @@ class App {
       (
         err: Error & { type?: string; code?: string },
         req: express.Request,
-        res: express.Response
+        res: express.Response,
+        next: express.NextFunction
       ) => {
         const contentLength = req.headers["content-length"] || "unknown";
         const errType = err?.type || "";

@@ -101,14 +101,14 @@ routes.post("/", async (req, res) => {
           log.debug(`Uploading bundle ${bundleId}`);
           await aws.upload(uploadParams);
           // Clear reference to help GC
-          uploadParams.bundle = null as unknown as RpcBundle;
+          delete uploadParams.bundle;
         } catch (e) {
           log.error(
             `Upload failed for bundle ${bundleId}:`,
             e instanceof Error ? e.stack : e
           );
           // Clear reference even on error
-          uploadParams.bundle = null as unknown as RpcBundle;
+          delete uploadParams.bundle;
         }
       });
     }, (config as Config).UPLOAD_DELAY_MS);
