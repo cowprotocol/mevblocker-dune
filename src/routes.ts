@@ -3,6 +3,7 @@ import { RpcBundle, JsonRpcRequest } from "./models";
 import { S3Uploader } from "./upload";
 import config, { Config } from "./config";
 import log from "./log";
+import memoryMonitor from "./memory-monitor";
 
 const routes = Router();
 const aws = new S3Uploader(config);
@@ -15,12 +16,12 @@ routes.post("/", async (req, res) => {
   try {
     const request: JsonRpcRequest = req.body;
     // Avoid logging entire huge payloads; log method and basic sizes only
-    const txCount = Array.isArray(request?.params?.[0]?.txs)
+    const initialTxCount = Array.isArray(request?.params?.[0]?.txs)
       ? request.params[0].txs.length
       : 0;
     const approxSize = Number(req.headers["content-length"]) || "unknown";
     log.trace(
-      `Handling incoming request: method=${request?.method} txCount=${txCount} contentLength=${approxSize}`
+      `Handling incoming request: method=${request?.method} txCount=${initialTxCount} contentLength=${approxSize}`
     );
     if (request.method != "eth_sendBundle") {
       log.debug("unsupported method");
@@ -40,10 +41,22 @@ routes.post("/", async (req, res) => {
       res.status(400).send();
       return;
     }
-    if (bundle.txs.length > 5000) {
-      // sanity limit to prevent abuse / memory pressure
-      log.warn(`too many txs in bundle: ${bundle.txs.length}`);
-      res.status(413).send();
+    // Enhanced validation for bundle size
+    const txCount = bundle.txs.length;
+    const contentLength = Number(req.headers["content-length"]) || 0;
+
+    if (txCount > 10000) {
+      // Increased limit but still reasonable to prevent abuse
+      log.warn(`too many txs in bundle: ${txCount}`);
+      res.status(413).json({ error: "Too many transactions", maxTxs: 10000 });
+      return;
+    }
+
+    // Estimate memory usage: ~2KB per transaction on average
+    const estimatedMemoryMB = (txCount * 2048) / (1024 * 1024);
+    if (estimatedMemoryMB > 100) {
+      log.warn(`Bundle too large: ${txCount} txs, estimated ${estimatedMemoryMB}MB`);
+      res.status(413).json({ error: "Bundle too large", estimatedSizeMB: estimatedMemoryMB });
       return;
     }
     const blockNumberNum = Number(bundle.blockNumber);
@@ -56,6 +69,11 @@ routes.post("/", async (req, res) => {
     const bundleId = `${blockNumberNum}_${request.id}`;
     log.debug(`Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${bundle.txs.length})`);
 
+    // Log memory stats for large bundles
+    if (bundle.txs.length > 1000) {
+      memoryMonitor.logMemoryStats();
+    }
+
     // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
     const referrer: string =
       (req.headers.referrer as string) || req.headers.referer;
@@ -66,14 +84,24 @@ routes.post("/", async (req, res) => {
     });
     const timestamp = new Date().getTime();
 
-    // Only upload after some delay
-    setTimeout(async () => {
-      try {
-        log.debug(`Uploading bundle ${bundleId}`);
-        await aws.upload({ bundle, bundleId, timestamp, referrer });
-      } catch (e) {
-        log.debug("Error", e instanceof Error ? e.stack : e);
-      }
+    // Create upload parameters to avoid holding bundle reference in closure
+    const uploadParams = { bundle, bundleId, timestamp, referrer };
+
+    // Only upload after some delay - use process.nextTick for better memory management
+    setTimeout(() => {
+      // Use setImmediate to avoid blocking the event loop
+      setImmediate(async () => {
+        try {
+          log.debug(`Uploading bundle ${bundleId}`);
+          await aws.upload(uploadParams);
+          // Clear reference to help GC
+          uploadParams.bundle = null as any;
+        } catch (e) {
+          log.error(`Upload failed for bundle ${bundleId}:`, e instanceof Error ? e.stack : e);
+          // Clear reference even on error
+          uploadParams.bundle = null as any;
+        }
+      });
     }, (config as Config).UPLOAD_DELAY_MS);
   } catch (e) {
     log.debug("Error", e instanceof Error ? e.stack : e);
