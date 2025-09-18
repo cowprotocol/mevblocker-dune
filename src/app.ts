@@ -2,7 +2,6 @@ import express from "express";
 import routes from "./routes";
 import promBundle from "express-prom-bundle";
 import log from "./log";
-import memoryMonitor from "./memory-monitor";
 
 class App {
   public server;
@@ -14,9 +13,7 @@ class App {
     this.routes();
     this.errorHandlers();
 
-    // Start memory monitoring
-    memoryMonitor.startMonitoring(30000); // Check every 30 seconds
-    log.info("Application initialized with memory monitoring");
+    log.info("Application initialized");
   }
 
   middlewares() {
@@ -33,9 +30,8 @@ class App {
     this.server.use(
       express.json({
         limit: "50mb",
-        // Add memory-efficient parsing options
         strict: true,
-        type: "application/json",
+        type: "application/json"
       })
     );
   }
@@ -84,10 +80,6 @@ class App {
           log.error(
             `Memory error: ${message}, content-length=${contentLength}`
           );
-          // Force garbage collection if available
-          if (global.gc) {
-            global.gc();
-          }
           return res.status(507).json({
             error: "Insufficient storage",
             message: "Bundle too large to process",

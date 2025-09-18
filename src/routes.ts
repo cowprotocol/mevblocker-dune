@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { RpcBundle, JsonRpcRequest } from "./models";
-import { S3Uploader } from "./upload";
+import { S3Uploader, convertBundleStreaming } from "./upload";
 import config, { Config } from "./config";
 import log from "./log";
-import memoryMonitor from "./memory-monitor";
 
 const routes = Router();
 const aws = new S3Uploader(config);
+
+// Track active bundle processing for monitoring (no hard limit)
+let activeBundleProcessing = 0;
 
 routes.get("/", (req, res) => {
   return res.json({ message: "Hello MEV Blocker" });
@@ -75,9 +77,24 @@ routes.post("/", async (req, res) => {
       `Received Bundle ${bundleId} (block=${bundle.blockNumber}, txs=${bundle.txs.length})`
     );
 
-    // Log memory stats for large bundles
-    if (bundle.txs.length > 1000) {
-      memoryMonitor.logMemoryStats();
+
+    // Log high concurrency for monitoring but don't block requests
+    if (activeBundleProcessing > 100) {
+      log.warn(
+        `High concurrent bundle processing: ${activeBundleProcessing} active bundles`
+      );
+    }
+    
+    // Only reject requests if we're in extreme memory pressure (very high concurrency)
+    if (activeBundleProcessing > 500) {
+      log.error(
+        `Extreme concurrent bundle processing: ${activeBundleProcessing} active bundles, rejecting request`
+      );
+      res.status(503).json({
+        error: "Service temporarily unavailable",
+        message: "Server is under extreme load, please retry later",
+      });
+      return;
     }
 
     // Context on spelling https://www.sistrix.com/ask-sistrix/technical-seo/http/http-referrer/
@@ -90,28 +107,55 @@ routes.post("/", async (req, res) => {
     });
     const timestamp = new Date().getTime();
 
-    // Create upload parameters to avoid holding bundle reference in closure
+    // Schedule upload with immediate memory cleanup to prevent accumulation
     const uploadParams = { bundle, bundleId, timestamp, referrer };
-
-    // Only upload after some delay - use process.nextTick for better memory management
-    setTimeout(() => {
-      // Use setImmediate to avoid blocking the event loop
-      setImmediate(async () => {
-        try {
-          log.debug(`Uploading bundle ${bundleId}`);
-          await aws.upload(uploadParams);
-          // Clear reference to help GC
-          delete uploadParams.bundle;
-        } catch (e) {
-          log.error(
-            `Upload failed for bundle ${bundleId}:`,
-            e instanceof Error ? e.stack : e
-          );
-          // Clear reference even on error
-          delete uploadParams.bundle;
-        }
-      });
-    }, (config as Config).UPLOAD_DELAY_MS);
+    
+    // Increment active processing counter for monitoring
+    activeBundleProcessing++;
+    
+    // Process bundle asynchronously to avoid blocking the response
+    setImmediate(async () => {
+      try {
+        // Convert bundle immediately to release original bundle memory
+        const duneBundle = await convertBundleStreaming(bundle, bundleId, timestamp, referrer);
+        
+        // Clear original bundle reference immediately
+        delete uploadParams.bundle;
+        
+        // Schedule actual upload after delay with pre-processed data
+        setTimeout(async () => {
+          try {
+            log.debug(`Uploading bundle ${bundleId}`);
+            await aws.uploadProcessedBundle(duneBundle, bundleId);
+          } catch (e) {
+            log.error(
+              `Upload failed for bundle ${bundleId}:`,
+              e instanceof Error ? e.stack : e
+            );
+          } finally {
+            // Clear processed bundle reference and decrement counter
+            duneBundle.transactions = [];
+            activeBundleProcessing--;
+            
+            // Trigger GC periodically to help with memory management
+            if (activeBundleProcessing % 20 === 0 && global.gc) {
+              global.gc();
+            }
+          }
+        }, (config as Config).UPLOAD_DELAY_MS);
+      } catch (e) {
+        log.error(
+          `Bundle processing failed for ${bundleId}:`,
+          e instanceof Error ? e.stack : e
+        );
+        // Clear reference on error and decrement counter
+        delete uploadParams.bundle;
+        activeBundleProcessing--;
+        
+        // Log error for monitoring
+        log.error(`Bundle processing failed, active count: ${activeBundleProcessing}`);
+      }
+    });
   } catch (e) {
     log.debug("Error", e instanceof Error ? e.stack : e);
     res.status(500).send();

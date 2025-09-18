@@ -87,8 +87,38 @@ export class S3Uploader {
         referrer
       );
 
+      return this.uploadProcessedBundle(duneBundle, bundleId, retryCount);
+    } catch (error) {
+      log.error(
+        `Bundle processing failed for ${bundleId} (attempt ${retryCount + 1}/${
+          maxRetries + 1
+        }): ${error}`
+      );
+
+      if (retryCount < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, retryCount) * 1000;
+        log.debug(`Retrying upload in ${delay}ms`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.upload(
+          { bundle: bundle!, bundleId, timestamp, referrer },
+          retryCount + 1
+        );
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  public async uploadProcessedBundle(
+    duneBundle: any,
+    bundleId: string,
+    retryCount = 0
+  ): Promise<void> {
+    const maxRetries = 3;
+    try {
       if (!this.s3) {
-        await this.createS3(timestamp);
+        await this.createS3(Date.now());
       }
 
       const client = this.s3;
@@ -96,11 +126,11 @@ export class S3Uploader {
         throw new Error("S3 client not initialized");
       }
 
-      // Use streaming upload for large bundles
-      const bundleJson = JSON.stringify(duneBundle);
+      // Use streaming JSON.stringify to avoid blocking the event loop
+      const bundleJson = await this.stringifyLargeObject(duneBundle);
       const params = {
         Bucket: this.bucketName,
-        Key: `raw_bundles/mevblocker_${timestamp}`,
+        Key: `raw_bundles/mevblocker_${duneBundle.timestamp}`,
         Body: bundleJson,
         ACL: ObjectCannedACL.bucket_owner_full_control,
       };
@@ -136,14 +166,25 @@ export class S3Uploader {
         const delay = Math.pow(2, retryCount) * 1000;
         log.debug(`Retrying upload in ${delay}ms`);
         await new Promise((resolve) => setTimeout(resolve, delay));
-        return this.upload(
-          { bundle: bundle!, bundleId, timestamp, referrer },
-          retryCount + 1
-        );
+        return this.uploadProcessedBundle(duneBundle, bundleId, retryCount + 1);
       } else {
         throw error;
       }
     }
+  }
+
+  // Non-blocking JSON stringify for large objects
+  private async stringifyLargeObject(obj: any): Promise<string> {
+    return new Promise((resolve, reject) => {
+      setImmediate(() => {
+        try {
+          const result = JSON.stringify(obj);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
   }
 
   private shouldResetConnection(error: unknown): boolean {
@@ -220,11 +261,14 @@ export async function convertBundleStreaming(
 
     transactions.push(...processedBatch);
 
-    // Allow event loop to process other requests (skip first iteration)
-    if (i > 0 && i % (batchSize * 10) === 0) {
+    // Allow event loop to process other requests more frequently for large bundles
+    if (i > 0 && (i % (batchSize * 5) === 0 || bundle.txs.length > 5000)) {
       await new Promise((resolve) => setImmediate(resolve));
     }
   }
+
+  // Clear reference to original bundle data to help GC
+  bundle.txs = [];
 
   return {
     bundleId,
