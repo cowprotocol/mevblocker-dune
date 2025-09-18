@@ -3,7 +3,7 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { S3, ObjectCannedACL } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@aws-sdk/node-http-handler";
 import { STS } from "@aws-sdk/client-sts";
-import log from "./log";
+import log, { createLogContext } from "./log";
 import * as https from "https";
 import { Config } from "./config";
 import { ethers } from "ethers";
@@ -45,7 +45,11 @@ export class S3Uploader {
           this.externalId,
           timestamp
         );
-        log.debug(`Creating S3 instance`);
+        log.info("Creating S3 instance", createLogContext({
+          timestamp,
+          region: this.region,
+          bucketName: this.bucketName
+        }));
         this.s3 = new S3({
           credentials,
           region: this.region,
@@ -89,11 +93,13 @@ export class S3Uploader {
 
       return this.uploadProcessedBundle(duneBundle, bundleId, retryCount);
     } catch (error) {
-      log.error(
-        `Bundle processing failed for ${bundleId} (attempt ${retryCount + 1}/${
-          maxRetries + 1
-        }): ${error}`
-      );
+      log.error("Bundle processing failed", createLogContext({
+        bundleId,
+        attempt: retryCount + 1,
+        maxRetries: maxRetries + 1,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }));
 
       if (retryCount < maxRetries) {
         // Exponential backoff: 1s, 2s, 4s
@@ -138,11 +144,24 @@ export class S3Uploader {
       log.debug(
         `Writing bundle ${bundleId} to ${this.bucketName} (size: ${bundleJson.length} bytes)`
       );
+      // Adaptive part size based on bundle size
+      const bundleSizeMB = bundleJson.length / (1024 * 1024);
+      let partSize = 1024 * 1024 * 5; // Default 5MB parts
+      let queueSize = 4; // Default queue size
+      
+      if (bundleSizeMB > 100) {
+        partSize = 1024 * 1024 * 10; // 10MB parts for very large bundles
+        queueSize = 6; // More concurrent uploads for large bundles
+      } else if (bundleSizeMB > 50) {
+        partSize = 1024 * 1024 * 8; // 8MB parts for large bundles
+        queueSize = 5;
+      }
+      
       const res = await new Upload({
         client,
         params,
-        partSize: 1024 * 1024 * 5, // 5MB parts for large uploads
-        queueSize: 4, // Limit concurrent uploads
+        partSize,
+        queueSize,
       }).done();
       log.debug(`File Uploaded successfully ${res.Location}`);
 
@@ -250,7 +269,18 @@ export async function convertBundleStreaming(
   referrer?: string
 ): Promise<DuneBundle> {
   const transactions: DuneBundleTransaction[] = [];
-  const batchSize = 100; // Process transactions in batches to reduce memory pressure
+  
+  // Adaptive batch size based on bundle size
+  const txCount = bundle.txs.length;
+  let batchSize = 100; // Default batch size
+  
+  if (txCount > 10000) {
+    batchSize = 500; // Larger batches for very large bundles
+  } else if (txCount > 5000) {
+    batchSize = 250; // Medium batches for large bundles
+  } else if (txCount > 1000) {
+    batchSize = 150; // Slightly larger batches for medium bundles
+  }
 
   // Process transactions in batches
   for (let i = 0; i < bundle.txs.length; i += batchSize) {
@@ -262,7 +292,9 @@ export async function convertBundleStreaming(
     transactions.push(...processedBatch);
 
     // Allow event loop to process other requests more frequently for large bundles
-    if (i > 0 && (i % (batchSize * 5) === 0 || bundle.txs.length > 5000)) {
+    // More frequent yielding for very large bundles
+    const yieldFrequency = txCount > 20000 ? batchSize * 2 : batchSize * 5;
+    if (i > 0 && (i % yieldFrequency === 0 || txCount > 5000)) {
       await new Promise((resolve) => setImmediate(resolve));
     }
   }
