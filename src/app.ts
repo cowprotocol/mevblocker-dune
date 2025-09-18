@@ -13,10 +13,13 @@ class App {
     this.routes();
     this.errorHandlers();
 
-    log.info("Application initialized", createLogContext({
-      port: 8080,
-      environment: process.env.NODE_ENV || "development"
-    }));
+    log.info(
+      "Application initialized",
+      createLogContext({
+        port: 8080,
+        environment: process.env.NODE_ENV || "development",
+      })
+    );
   }
 
   middlewares() {
@@ -34,27 +37,38 @@ class App {
       express.json({
         limit: "200mb",
         strict: true,
-        type: "application/json"
+        type: "application/json",
       })
     );
-    
+
     // Add middleware to catch JSON parsing errors
-    this.server.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (err instanceof SyntaxError && (err as any).status === 400 && 'body' in err) {
-        log.warn("JSON parsing error", createLogContext({
-          error: err.message,
-          contentLength: req.headers["content-length"],
-          contentType: req.headers["content-type"],
-          userAgent: req.headers["user-agent"],
-          clientRequestId: req.headers["x-request-id"] || req.headers["x-amz-cf-id"] || req.headers["x-amzn-requestid"]
-        }));
-        return res.status(400).json({ 
-          error: "Invalid JSON", 
-          message: "Request body must be valid JSON" 
-        });
+    this.server.use(
+      (
+        err: Error & { status?: number },
+        req: express.Request,
+        res: express.Response
+      ) => {
+        if (err instanceof SyntaxError && err.status === 400 && "body" in err) {
+          log.warn(
+            "JSON parsing error",
+            createLogContext({
+              error: err.message,
+              contentLength: req.headers["content-length"],
+              contentType: req.headers["content-type"],
+              userAgent: req.headers["user-agent"],
+              clientRequestId:
+                req.headers["x-request-id"] ||
+                req.headers["x-amz-cf-id"] ||
+                req.headers["x-amzn-requestid"],
+            })
+          );
+          return res.status(400).json({
+            error: "Invalid JSON",
+            message: "Request body must be valid JSON",
+          });
+        }
       }
-      next(err);
-    });
+    );
   }
 
   routes() {
@@ -67,8 +81,7 @@ class App {
       (
         err: Error & { type?: string; code?: string },
         req: express.Request,
-        res: express.Response,
-        next: express.NextFunction
+        res: express.Response
       ) => {
         const contentLength = req.headers["content-length"] || "unknown";
         const errType = err?.type || "";
@@ -76,12 +89,18 @@ class App {
         const message = err?.message || "";
 
         if (errType === "entity.too.large") {
-          log.warn("Payload too large", createLogContext({
-            contentLength,
-            maxSize: "200MB",
-            userAgent: req.headers["user-agent"],
-            clientRequestId: req.headers["x-request-id"] || req.headers["x-amz-cf-id"] || req.headers["x-amzn-requestid"]
-          }));
+          log.warn(
+            "Payload too large",
+            createLogContext({
+              contentLength,
+              maxSize: "200MB",
+              userAgent: req.headers["user-agent"],
+              clientRequestId:
+                req.headers["x-request-id"] ||
+                req.headers["x-amz-cf-id"] ||
+                req.headers["x-amzn-requestid"],
+            })
+          );
           return res
             .status(413)
             .json({ error: "Payload too large", maxSize: "200MB" });
@@ -91,13 +110,19 @@ class App {
           errType === "request.aborted" ||
           errCode === "ECONNABORTED"
         ) {
-          log.warn("Request aborted by client", createLogContext({
-            contentLength,
-            userAgent: req.headers["user-agent"],
-            errorType: errType,
-            errorCode: errCode,
-            clientRequestId: req.headers["x-request-id"] || req.headers["x-amz-cf-id"] || req.headers["x-amzn-requestid"]
-          }));
+          log.warn(
+            "Request aborted by client",
+            createLogContext({
+              contentLength,
+              userAgent: req.headers["user-agent"],
+              errorType: errType,
+              errorCode: errCode,
+              clientRequestId:
+                req.headers["x-request-id"] ||
+                req.headers["x-amz-cf-id"] ||
+                req.headers["x-amzn-requestid"],
+            })
+          );
           return res.status(400).json({ error: "Request aborted" });
         }
 
@@ -107,28 +132,40 @@ class App {
           message.includes("Maximum call stack") ||
           errCode === "ERR_OUT_OF_MEMORY"
         ) {
-          log.error("Memory error", createLogContext({
-            message,
-            contentLength,
-            errorCode: errCode,
-            userAgent: req.headers["user-agent"],
-            clientRequestId: req.headers["x-request-id"] || req.headers["x-amz-cf-id"] || req.headers["x-amzn-requestid"]
-          }));
+          log.error(
+            "Memory error",
+            createLogContext({
+              message,
+              contentLength,
+              errorCode: errCode,
+              userAgent: req.headers["user-agent"],
+              clientRequestId:
+                req.headers["x-request-id"] ||
+                req.headers["x-amz-cf-id"] ||
+                req.headers["x-amzn-requestid"],
+            })
+          );
           return res.status(507).json({
             error: "Insufficient storage",
             message: "Bundle too large to process",
           });
         }
 
-        log.error("Unhandled error", createLogContext({
-          message: message || String(err),
-          errorType: errType,
-          errorCode: errCode,
-          contentLength,
-          userAgent: req.headers["user-agent"],
-          stack: err instanceof Error ? err.stack : undefined,
-          clientRequestId: req.headers["x-request-id"] || req.headers["x-amz-cf-id"] || req.headers["x-amzn-requestid"]
-        }));
+        log.error(
+          "Unhandled error",
+          createLogContext({
+            message: message || String(err),
+            errorType: errType,
+            errorCode: errCode,
+            contentLength,
+            userAgent: req.headers["user-agent"],
+            stack: err instanceof Error ? err.stack : undefined,
+            clientRequestId:
+              req.headers["x-request-id"] ||
+              req.headers["x-amz-cf-id"] ||
+              req.headers["x-amzn-requestid"],
+          })
+        );
         return res.status(500).json({ error: "Internal server error" });
       }
     );

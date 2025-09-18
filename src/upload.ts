@@ -45,11 +45,14 @@ export class S3Uploader {
           this.externalId,
           timestamp
         );
-        log.info("Creating S3 instance", createLogContext({
-          timestamp,
-          region: this.region,
-          bucketName: this.bucketName
-        }));
+        log.info(
+          "Creating S3 instance",
+          createLogContext({
+            timestamp,
+            region: this.region,
+            bucketName: this.bucketName,
+          })
+        );
         this.s3 = new S3({
           credentials,
           region: this.region,
@@ -93,13 +96,16 @@ export class S3Uploader {
 
       return this.uploadProcessedBundle(duneBundle, bundleId, retryCount);
     } catch (error) {
-      log.error("Bundle processing failed", createLogContext({
-        bundleId,
-        attempt: retryCount + 1,
-        maxRetries: maxRetries + 1,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      }));
+      log.error(
+        "Bundle processing failed",
+        createLogContext({
+          bundleId,
+          attempt: retryCount + 1,
+          maxRetries: maxRetries + 1,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+      );
 
       if (retryCount < maxRetries) {
         // Exponential backoff: 1s, 2s, 4s
@@ -107,7 +113,7 @@ export class S3Uploader {
         log.debug(`Retrying upload in ${delay}ms`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         return this.upload(
-          { bundle: bundle!, bundleId, timestamp, referrer },
+          { bundle: bundle as RpcBundle, bundleId, timestamp, referrer },
           retryCount + 1
         );
       } else {
@@ -117,7 +123,7 @@ export class S3Uploader {
   }
 
   public async uploadProcessedBundle(
-    duneBundle: any,
+    duneBundle: DuneBundle,
     bundleId: string,
     retryCount = 0
   ): Promise<void> {
@@ -148,7 +154,7 @@ export class S3Uploader {
       const bundleSizeMB = bundleJson.length / (1024 * 1024);
       let partSize = 1024 * 1024 * 5; // Default 5MB parts
       let queueSize = 4; // Default queue size
-      
+
       if (bundleSizeMB > 100) {
         partSize = 1024 * 1024 * 10; // 10MB parts for very large bundles
         queueSize = 6; // More concurrent uploads for large bundles
@@ -156,7 +162,7 @@ export class S3Uploader {
         partSize = 1024 * 1024 * 8; // 8MB parts for large bundles
         queueSize = 5;
       }
-      
+
       const res = await new Upload({
         client,
         params,
@@ -193,7 +199,7 @@ export class S3Uploader {
   }
 
   // Non-blocking JSON stringify for large objects
-  private async stringifyLargeObject(obj: any): Promise<string> {
+  private async stringifyLargeObject(obj: DuneBundle): Promise<string> {
     return new Promise((resolve, reject) => {
       setImmediate(() => {
         try {
@@ -269,11 +275,11 @@ export async function convertBundleStreaming(
   referrer?: string
 ): Promise<DuneBundle> {
   const transactions: DuneBundleTransaction[] = [];
-  
+
   // Adaptive batch size based on bundle size
   const txCount = bundle.txs.length;
   let batchSize = 100; // Default batch size
-  
+
   if (txCount > 10000) {
     batchSize = 500; // Larger batches for very large bundles
   } else if (txCount > 5000) {
