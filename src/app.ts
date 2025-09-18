@@ -1,6 +1,7 @@
 import express from "express";
 import routes from "./routes";
 import promBundle from "express-prom-bundle";
+import log from "./log";
 
 class App {
   public server;
@@ -10,6 +11,8 @@ class App {
 
     this.middlewares();
     this.routes();
+
+    log.info("Application initialized");
   }
 
   middlewares() {
@@ -21,7 +24,7 @@ class App {
         httpDurationMetricName: "mevblocker_dune_http_request",
       })
     );
-    this.server.use(express.json({ limit: "10mb" }));
+    this.server.use(express.json({ limit: "50mb" }));
   }
 
   routes() {
