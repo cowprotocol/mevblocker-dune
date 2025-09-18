@@ -3,13 +3,13 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { S3, ObjectCannedACL } from "@aws-sdk/client-s3";
 import { NodeHttpHandler } from "@aws-sdk/node-http-handler";
 import { STS } from "@aws-sdk/client-sts";
-import log from "./log";
+import log, { createLogContext } from "./log";
 import * as https from "https";
 import { Config } from "./config";
 import { ethers } from "ethers";
 
 interface UploadParams {
-  bundle: RpcBundle;
+  bundle?: RpcBundle;
   bundleId: string;
   timestamp: number;
   referrer?: string;
@@ -21,6 +21,7 @@ export class S3Uploader {
   private rolesToAssume: Array<string>;
   private region: string;
   private s3: S3 | undefined;
+  private s3CreationPromise: Promise<void> | null = null;
 
   constructor(config: Config) {
     this.bucketName = config.BUCKET_NAME;
@@ -31,75 +32,195 @@ export class S3Uploader {
     this.region = config.REGION;
   }
 
-  public async createS3(timestamp: number) {
-    const credentials = await assumeRoles(
-      this.rolesToAssume,
-      this.externalId,
-      timestamp
-    );
-    log.debug(`Creating S3 instance`);
-    this.s3 = new S3({
-      credentials,
-      region: this.region,
-      maxAttempts: 3,
-      requestHandler: new NodeHttpHandler({
-        connectionTimeout: 5000,
-        socketTimeout: 60000,
-        httpsAgent: new https.Agent({
-          keepAlive: true,
-          keepAliveMsecs: 5000,
-          maxSockets: 32,
-          maxFreeSockets: 16,
-        }),
-      }),
-    });
-  }
-  public async upload({
-    bundle,
-    bundleId,
-    timestamp,
-    referrer,
-  }: UploadParams): Promise<void> {
-    const duneBundle = convertBundle(bundle, bundleId, timestamp, referrer);
-    const key = `raw_bundles/mevblocker_${timestamp}`;
-    const body = JSON.stringify(duneBundle);
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  public async createS3(timestamp: number): Promise<void> {
+    // Prevent race conditions by using a shared promise
+    if (this.s3CreationPromise) {
+      return this.s3CreationPromise;
+    }
+
+    this.s3CreationPromise = (async () => {
       try {
-        if (!this.s3) {
-          await this.createS3(timestamp);
-        }
-        const client = this.s3;
-        if (!client) {
-          // Defensive: createS3 should set this.s3; if not, we cannot proceed.
-          throw new Error("S3 client not initialized");
-        }
-        const params = {
-          Bucket: this.bucketName,
-          Key: key,
-          Body: body,
-          ACL: ObjectCannedACL.bucket_owner_full_control,
-        };
-        log.debug(
-          `Uploading to s3://${this.bucketName}/${key} (attempt ${attempt})`
+        const credentials = await assumeRoles(
+          this.rolesToAssume,
+          this.externalId,
+          timestamp
         );
-        const res = await new Upload({ client, params }).done();
-        log.debug(`Uploaded ${key} -> ${res.Location}`);
-        return;
+        log.info(
+          "Creating S3 instance",
+          createLogContext({
+            timestamp,
+            region: this.region,
+            bucketName: this.bucketName,
+          })
+        );
+        this.s3 = new S3({
+          credentials,
+          region: this.region,
+          maxAttempts: 3,
+          requestHandler: new NodeHttpHandler({
+            connectionTimeout: 5000,
+            socketTimeout: 60000,
+            httpsAgent: new https.Agent({
+              keepAlive: true,
+              keepAliveMsecs: 5000,
+              maxSockets: 32,
+              maxFreeSockets: 16,
+            }),
+          }),
+        });
       } catch (error) {
-        log.error(
-          `Upload failed for ${key} (attempt ${attempt}/${maxAttempts}): ${error}`
+        // Reset promise on error so next call can retry
+        this.s3CreationPromise = null;
+        throw error;
+      }
+    })();
+
+    return this.s3CreationPromise;
+  }
+
+  public async upload(
+    { bundle, bundleId, timestamp, referrer }: UploadParams,
+    retryCount = 0
+  ): Promise<void> {
+    const maxRetries = 3;
+    try {
+      if (!bundle) {
+        throw new Error("Bundle is required for upload");
+      }
+      const duneBundle = await convertBundleStreaming(
+        bundle,
+        bundleId,
+        timestamp,
+        referrer
+      );
+
+      return this.uploadProcessedBundle(duneBundle, bundleId, retryCount);
+    } catch (error) {
+      log.error(
+        "Bundle processing failed",
+        createLogContext({
+          bundleId,
+          attempt: retryCount + 1,
+          maxRetries: maxRetries + 1,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        })
+      );
+
+      if (retryCount < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, retryCount) * 1000;
+        log.debug(`Retrying upload in ${delay}ms`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.upload(
+          { bundle: bundle as RpcBundle, bundleId, timestamp, referrer },
+          retryCount + 1
         );
-        // Force re-init of the client on next attempt
-        this.s3 = undefined;
-        if (attempt < maxAttempts) {
-          const backoffMs = 1000 * Math.pow(2, attempt - 1);
-          await new Promise((r) => setTimeout(r, backoffMs));
-          continue;
-        }
+      } else {
         throw error;
       }
     }
+  }
+
+  public async uploadProcessedBundle(
+    duneBundle: DuneBundle,
+    bundleId: string,
+    retryCount = 0
+  ): Promise<void> {
+    const maxRetries = 3;
+    try {
+      if (!this.s3) {
+        await this.createS3(Date.now());
+      }
+
+      const client = this.s3;
+      if (!client) {
+        throw new Error("S3 client not initialized");
+      }
+
+      // Use streaming JSON.stringify to avoid blocking the event loop
+      const bundleJson = await this.stringifyLargeObject(duneBundle);
+      const params = {
+        Bucket: this.bucketName,
+        Key: `raw_bundles/mevblocker_${duneBundle.timestamp}`,
+        Body: bundleJson,
+        ACL: ObjectCannedACL.bucket_owner_full_control,
+      };
+
+      log.debug(
+        `Writing bundle ${bundleId} to ${this.bucketName} (size: ${bundleJson.length} bytes)`
+      );
+      // Adaptive part size based on bundle size
+      const bundleSizeMB = bundleJson.length / (1024 * 1024);
+      let partSize = 1024 * 1024 * 5; // Default 5MB parts
+      let queueSize = 4; // Default queue size
+
+      if (bundleSizeMB > 100) {
+        partSize = 1024 * 1024 * 10; // 10MB parts for very large bundles
+        queueSize = 6; // More concurrent uploads for large bundles
+      } else if (bundleSizeMB > 50) {
+        partSize = 1024 * 1024 * 8; // 8MB parts for large bundles
+        queueSize = 5;
+      }
+
+      const res = await new Upload({
+        client,
+        params,
+        partSize,
+        queueSize,
+      }).done();
+      log.debug(`File Uploaded successfully ${res.Location}`);
+
+      // Clear reference to help with GC
+      duneBundle.transactions = [];
+    } catch (error) {
+      log.error(
+        `Unable to Upload bundle ${bundleId} (attempt ${retryCount + 1}/${
+          maxRetries + 1
+        }): ${error}`
+      );
+
+      // Reset S3 connection on certain errors
+      if (this.shouldResetConnection(error)) {
+        this.s3 = undefined;
+        this.s3CreationPromise = null;
+      }
+
+      if (retryCount < maxRetries) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, retryCount) * 1000;
+        log.debug(`Retrying upload in ${delay}ms`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.uploadProcessedBundle(duneBundle, bundleId, retryCount + 1);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // Non-blocking JSON stringify for large objects
+  private async stringifyLargeObject(obj: DuneBundle): Promise<string> {
+    return new Promise((resolve, reject) => {
+      setImmediate(() => {
+        try {
+          const result = JSON.stringify(obj);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }
+
+  private shouldResetConnection(error: unknown): boolean {
+    const errorString = String(error).toLowerCase();
+    return (
+      errorString.includes("credentials") ||
+      errorString.includes("token") ||
+      errorString.includes("expired") ||
+      errorString.includes("network") ||
+      errorString.includes("timeout")
+    );
   }
 }
 
@@ -117,6 +238,7 @@ async function assumeRoles(
         RoleArn: role,
         RoleSessionName: `mevblocker-dune-sync-${timestamp}`,
         ExternalId,
+        DurationSeconds: 3600,
       })
     ).Credentials;
     credentials = {
@@ -138,11 +260,74 @@ export function convertBundle(
     bundleId,
     timestamp,
     blockNumber: Number(bundle.blockNumber),
-    transactions: bundle.txs.map((tx) =>
-      decodeTx(tx, bundle.revertingTxHashes)
-    ),
+    transactions: bundle.txs
+      .map((tx) => tryDecodeTx(tx, bundle.revertingTxHashes))
+      .filter((t): t is DuneBundleTransaction => t !== null),
     referrer,
   };
+}
+
+// Memory-efficient streaming version for large bundles
+export async function convertBundleStreaming(
+  bundle: RpcBundle,
+  bundleId: string,
+  timestamp: number,
+  referrer?: string
+): Promise<DuneBundle> {
+  const transactions: DuneBundleTransaction[] = [];
+
+  // Adaptive batch size based on bundle size
+  const txCount = bundle.txs.length;
+  let batchSize = 100; // Default batch size
+
+  if (txCount > 10000) {
+    batchSize = 500; // Larger batches for very large bundles
+  } else if (txCount > 5000) {
+    batchSize = 250; // Medium batches for large bundles
+  } else if (txCount > 1000) {
+    batchSize = 150; // Slightly larger batches for medium bundles
+  }
+
+  // Process transactions in batches
+  for (let i = 0; i < bundle.txs.length; i += batchSize) {
+    const batch = bundle.txs.slice(i, i + batchSize);
+    const processedBatch = batch
+      .map((tx) => tryDecodeTx(tx, bundle.revertingTxHashes))
+      .filter((t): t is DuneBundleTransaction => t !== null);
+
+    transactions.push(...processedBatch);
+
+    // Allow event loop to process other requests more frequently for large bundles
+    // More frequent yielding for very large bundles
+    const yieldFrequency = txCount > 20000 ? batchSize * 2 : batchSize * 5;
+    if (i > 0 && (i % yieldFrequency === 0 || txCount > 5000)) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  }
+
+  // Clear reference to original bundle data to help GC
+  bundle.txs = [];
+
+  return {
+    bundleId,
+    timestamp,
+    blockNumber: Number(bundle.blockNumber),
+    transactions,
+    referrer,
+  };
+}
+
+function tryDecodeTx(
+  tx: string,
+  revertingTxHashes?: Array<string>
+): DuneBundleTransaction | null {
+  try {
+    return decodeTx(tx, revertingTxHashes);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.warn(`Failed to decode transaction, skipping. Reason: ${message}`);
+    return null;
+  }
 }
 
 function decodeTx(
