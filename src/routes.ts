@@ -12,10 +12,11 @@ routes.get("/", (req, res) => {
 });
 
 routes.post("/", async (req, res) => {
+  const clientRequestId =
+    req.headers["x-request-id"] || req.headers["x-amz-cf-id"];
+    
   try {
     const request: JsonRpcRequest = req.body;
-    const clientRequestId =
-      req.headers["x-request-id"] || req.headers["x-amz-cf-id"];
 
     log.trace(
       `Handling incoming request: ${request?.method}, clientRequestId: ${clientRequestId}`
