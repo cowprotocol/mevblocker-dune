@@ -1,4 +1,5 @@
 import { Router } from "express";
+import PQueue from "p-queue";
 import { RpcBundle, JsonRpcRequest } from "./models";
 import { S3Uploader } from "./upload";
 import config, { Config } from "./config";
@@ -6,6 +7,7 @@ import log from "./log";
 
 const routes = Router();
 const aws = new S3Uploader(config);
+const queue = new PQueue({ concurrency: (config as Config).CONCURRENCY });
 
 routes.get("/", (req, res) => {
   return res.json({ message: "Hello MEV Blocker" });
@@ -14,7 +16,6 @@ routes.get("/", (req, res) => {
 routes.post("/", async (req, res) => {
   try {
     const request: JsonRpcRequest = req.body;
-    log.trace(`Handling incoming request: ${JSON.stringify(request)}`);
     if (request.method != "eth_sendBundle") {
       log.debug("unsupported method");
       res.status(405).send();
@@ -42,15 +43,18 @@ routes.post("/", async (req, res) => {
     });
     const timestamp = new Date().getTime();
 
-    // Only upload after some delay
-    setTimeout(async () => {
-      try {
-        log.debug(`Uploading bundle ${bundleId}`);
-        await aws.upload({ bundle, bundleId, timestamp, referrer });
-      } catch (e) {
-        log.debug("Error", e instanceof Error ? e.stack : e);
-      }
-    }, (config as Config).UPLOAD_DELAY_MS);
+    // Queue avoids CPU overload when many bundles arrive at once
+    queue.add(async () => {
+      // Only upload after some delay
+      setTimeout(async () => {
+        try {
+          log.debug(`Uploading bundle ${bundleId}`);
+          await aws.upload({ bundle, bundleId, timestamp, referrer });
+        } catch (e) {
+          log.debug("Error", e instanceof Error ? e.stack : e);
+        }
+      }, (config as Config).UPLOAD_DELAY_MS);
+    });
   } catch (e) {
     log.debug("Error", e instanceof Error ? e.stack : e);
     res.status(500).send();
