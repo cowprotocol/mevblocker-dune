@@ -10,7 +10,8 @@
     "baseUrl": ".",
     "paths": {
       "*": ["node_modules/*"]
-    }
+    },
+    "lib": ["ES2022", "ES2022.error"]
   },
   "include": ["src/**/*"]
 }
