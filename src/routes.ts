@@ -7,7 +7,7 @@ import log from "./log";
 
 const routes = Router();
 const aws = new S3Uploader(config);
-const queue = new PQueue({ concurrency: 5 });
+const queue = new PQueue({ concurrency: (config as Config).CONCURRENCY });
 
 routes.get("/", (req, res) => {
   return res.json({ message: "Hello MEV Blocker" });
@@ -16,7 +16,6 @@ routes.get("/", (req, res) => {
 routes.post("/", async (req, res) => {
   try {
     const request: JsonRpcRequest = req.body;
-    log.trace(`Handling incoming request: ${JSON.stringify(request)}`);
     if (request.method != "eth_sendBundle") {
       log.debug("unsupported method");
       res.status(405).send();

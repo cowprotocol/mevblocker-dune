@@ -8,11 +8,13 @@ const config = t.type({
   ROLES_TO_ASSUME: t.string,
   UPLOAD_DELAY_MS: t.number,
   REGION: t.string,
+  CONCURRENCY: t.number,
 });
 
 const parsedEnv = {
   ...process.env,
   UPLOAD_DELAY_MS: parseInt(process.env.UPLOAD_DELAY_MS, 10),
+  CONCURRENCY: parseInt(process.env.CONCURRENCY, 10) || 10,
 };
 
 export type Config = t.TypeOf<typeof config>;
